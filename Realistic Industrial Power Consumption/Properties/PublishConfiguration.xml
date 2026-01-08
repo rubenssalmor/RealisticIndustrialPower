@@ -19,17 +19,12 @@
 
 		## Features
 		- Lot size-based power consumption for industrial buildings
-		- Balanced power values from 0.75 MW (small) to 7.5 MW (very large)
+		- Efficiency scaling: Larger buildings are more power-efficient
 		- Configurable global power multiplier (75%–375%)
 		- Accurate electrical grid demand and consumption behavior
 		- Compatible with all industrial building types
 		- Optimized for minimal performance impact
 
-		## Power Consumption at 100%
-		- Small buildings (≤30 tiles): 200–750 kW
-		- Medium buildings (31–100 tiles): 400–2000 kW
-		- Large buildings (101–250 tiles): 800–4000 kW
-		- Very large buildings (>250 tiles): 1900–7500 kW
 
 		## Settings
 		Available in Options → Mod Settings
@@ -45,13 +40,31 @@
 	<Tag Value="UIElectricity" />
 	<Tag Value="UIZonesIndustrial" />
 	<!--Version of the mod-->
-	<ModVersion Value="1.1.2" />
+	<ModVersion Value="1.2.0" />
 	<!--Recommended version of the base game to use the mod-->
 	<GameVersion Value="1.5.*" />
 	<!--Change log for new version-->
-	<ChangeLog>**Version 1.1.2 - Bug Fix**
+	<ChangeLog>**Version 1.2.0 - Power Consumption Balance Overhaul**
 
-**GITHUB INITIAL RELASE**
+**Fixed**
+- Fixed excessive power consumption in very large buildings
+- Eliminated double scaling issue where lot area AND size multiplier caused exponential growth
+
+**Balanced**
+- Simplified power calculation: Consumption = Lot Area × 5 kW/tile × Size Multiplier × User Multiplier%
+- Efficiency-based multipliers (larger buildings are more efficient):
+  • Small (≤30 tiles): 1.0x
+  • Medium (31-100 tiles): 0.9x
+  • Large (101-250 tiles): 0.8x
+  • Very Large (>250 tiles): 0.7x
+- Eliminated all hard caps - consumption scales with efficiency bonuses
+
+**Gameplay Impact**
+- Power consumption is predictable with efficiency scaling
+- Larger industrial buildings are more power-efficient per tile
+- Example: 100-tile = 450 kW, 500-tile = 1,750 kW (@ 100%)
+- User slider (75%-375%) gives full control over difficulty
+- Encourages building larger, more efficient industrial zones
 
 	</ChangeLog>
 	<!--External Links-->

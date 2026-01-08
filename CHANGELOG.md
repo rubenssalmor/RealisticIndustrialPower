@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.2.0] - 2026-01-07
+
+### 🔧 Fixed
+- **Fixed excessive power consumption in very large buildings**: Eliminated double scaling issue where both lot area AND size multiplier were causing exponential consumption growth.
+- **Power consumption now scales predictably**: Consumption now scales primarily by lot area with only a gentle size correction multiplier.
+
+### ⚖️ Balanced
+- **Simplified power calculation system**:
+  - Formula: **Consumption = Lot Area × 5 kW/tile × Size Multiplier × User Multiplier%**
+  - Efficiency-based multipliers by building size (larger = more efficient):
+    - Small (≤30 tiles): **1.0x**
+    - Medium (31-100 tiles): **0.9x**
+    - Large (101-250 tiles): **0.8x**
+    - Very Large (>250 tiles): **0.7x**
+  - Eliminated all hard caps - consumption scales with efficiency bonuses
+  - This eliminates the previous double scaling problem while rewarding larger industrial buildings
+
+### 📝 Technical Changes
+- Simplified power consumption formula for better maintainability
+- Removed all hard caps/clamps - pure linear scaling
+- Updated code comments to reflect new calculation methodology
+
+### 🎯 Gameplay Impact
+- Power consumption is now predictable with efficiency scaling
+- Larger industrial buildings are more power-efficient per tile
+- Example: 100-tile building uses 450 kW, 500-tile building uses 1,750 kW (@ 100%)
+- User slider (75%-375%) gives full control over difficulty
+- Encourages building larger, more efficient industrial zones
+
+---
+
 ## [1.1.1] - 2026-01-03
 
 ### 🔧 Fixed

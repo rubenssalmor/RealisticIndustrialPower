@@ -19,7 +19,7 @@ namespace Realistic_Industrial_Power_Consumption
         {
             log.Info("========================================");
             log.Info("REALISTIC INDUSTRIAL POWER CONSUMPTION");
-            log.Info("Version: 1.1.0");
+            log.Info("Version: 1.2.0");
             log.Info("========================================");
 
             if (GameManager.instance.modManager.TryGetExecutableAsset(this, out var asset))

@@ -170,30 +170,16 @@ namespace Realistic_Industrial_Power_Consumption
                                 int lotArea;
                                 float sizeMultiplier = CalculateLotSizeMultiplier(prefabRef, out sizeCategory, out lotArea);
 
-                                // Calculate consumption based on category with balanced values
-                                // Target max: Small 0.75MW, Medium 2MW, Large 4MW, Very Large 7.5MW
-                                int calculatedMax;
+                                // SISTEMA SIMPLIFICADO: Consumo = área × 5 kW/tile × sizeMultiplier
+                                // El multiplicador del usuario (slider) se aplica después
 
-                                switch (sizeCategory)
-                                {
-                                    case "Small": // ≤30 tiles, max 750 kW
-                                        calculatedMax = (int)System.Math.Round(lotArea * 18f * sizeMultiplier);
-                                        break;
-                                    case "Medium": // 31-100 tiles, max 2000 kW
-                                        calculatedMax = (int)System.Math.Round(lotArea * 17f * sizeMultiplier);
-                                        break;
-                                    case "Large": // 101-250 tiles, max 4000 kW
-                                        calculatedMax = (int)System.Math.Round(lotArea * 16f * sizeMultiplier);
-                                        break;
-                                    case "Very Large": // >250 tiles, max 7500 kW
-                                        calculatedMax = (int)System.Math.Round(lotArea * 15f * sizeMultiplier);
-                                        break;
-                                    default:
-                                        calculatedMax = (int)System.Math.Round(lotArea * 15f);
-                                        break;
-                                }
+                                // Factor base: 5 kW por tile de área
+                                int baseConsumption = (int)System.Math.Round(lotArea * 5f);
 
-                                m_CalculatedConsumption[prefabRef.m_Prefab] = calculatedMax;
+                                // Consumo final = base × sizeMultiplier (actualmente 1.0x)
+                                int calculatedConsumption = (int)System.Math.Round(baseConsumption * sizeMultiplier);
+
+                                m_CalculatedConsumption[prefabRef.m_Prefab] = calculatedConsumption;
                             }
 
                             // Calculate target consumption for this prefab
@@ -332,34 +318,27 @@ namespace Realistic_Industrial_Power_Consumption
                     lotArea = buildingData.m_LotSize.x * buildingData.m_LotSize.y;
 
                     // Size categories based on lot area (width × depth in tiles)
-                    // Adjusted multipliers for balanced consumption
+                    // MULTIPLICADOR UNIFORME: 1.0x para todas las categorías
+                    // El consumo escala puramente por área del lote
                     if (lotArea <= 30)
                     {
-                        // Small buildings: 0.5x - 1.0x (max 30 * 25 * 1.0 = 750 kW = 0.75 MW)
                         sizeCategory = "Small";
-                        float t = (float)lotArea / 30f;
-                        return math.lerp(0.5f, 1.0f, t);
+                        return 1.0f;
                     }
                     else if (lotArea <= 100)
                     {
-                        // Medium buildings: 0.5x - 1.0x (max 100 * 20 * 1.0 = 2000 kW = 2 MW)
                         sizeCategory = "Medium";
-                        float t = (float)(lotArea - 30) / 70f;
-                        return math.lerp(0.5f, 1.0f, t);
+                        return 0.9f;
                     }
                     else if (lotArea <= 250)
                     {
-                        // Large buildings: 0.5x - 1.0x (max 250 * 16 * 1.0 = 4000 kW = 4 MW)
                         sizeCategory = "Large";
-                        float t = (float)(lotArea - 100) / 150f;
-                        return math.lerp(0.5f, 1.0f, t);
+                        return 0.8f;
                     }
                     else
                     {
-                        // Very Large buildings: 0.5x - 1.0x (max 500 * 15 * 1.0 = 7500 kW = 7.5 MW)
                         sizeCategory = "Very Large";
-                        float t = math.min((float)(lotArea - 250) / 250f, 1.0f);
-                        return math.lerp(0.5f, 1.0f, t);
+                        return 0.7f;
                     }
                 }
                 else
