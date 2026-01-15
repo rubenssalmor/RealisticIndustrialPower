@@ -35,36 +35,29 @@
 	</LongDescription>
 	<!--Thumbnail-->
 	<Thumbnail Value="Properties/Thumbnail.png" />
+	<!--Screenshot-->
+	<ScreenShot Value="Properties/PublishProfiles/949230_282.jpg" />
 	<!--Tag, can be set multiple times-->
 	<Tag Value="Code Mod" />
 	<Tag Value="UIElectricity" />
 	<Tag Value="UIZonesIndustrial" />
 	<!--Version of the mod-->
-	<ModVersion Value="1.2.0" />
+	<ModVersion Value="1.2.1" />
 	<!--Recommended version of the base game to use the mod-->
 	<GameVersion Value="1.5.*" />
 	<!--Change log for new version-->
-	<ChangeLog>**Version 1.2.0 - Power Consumption Balance Overhaul**
+	<ChangeLog>**Version 1.2.1 - Size Category Customization**
 
-**Fixed**
-- Fixed excessive power consumption in very large buildings
-- Eliminated double scaling issue where lot area AND size multiplier caused exponential growth
+**Added**
+- 7 size categories with individual multiplier sliders: Small (≤30), Medium (31-100), Large (101-250), Very Large (251-500), Huge (501-750), Massive (751-1000), Gigantic (>1000 tiles)
+- Adjustable multipliers for each category to fine-tune power consumption
+- Default values reduce consumption for very large buildings (prevents excessive power usage over 40 MW)
 
-**Balanced**
-- Simplified power calculation: Consumption = Lot Area × 5 kW/tile × Size Multiplier × User Multiplier%
-- Efficiency-based multipliers (larger buildings are more efficient):
-  • Small (≤30 tiles): 1.0x
-  • Medium (31-100 tiles): 0.9x
-  • Large (101-250 tiles): 0.8x
-  • Very Large (>250 tiles): 0.7x
-- Eliminated all hard caps - consumption scales with efficiency bonuses
-
-**Gameplay Impact**
-- Power consumption is predictable with efficiency scaling
-- Larger industrial buildings are more power-efficient per tile
-- Example: 100-tile = 450 kW, 500-tile = 1,750 kW (@ 100%)
-- User slider (75%-375%) gives full control over difficulty
-- Encourages building larger, more efficient industrial zones
+**Changed**
+- Very Large buildings: 80% default multiplier
+- Huge buildings: 60% default multiplier
+- Massive buildings: 40% default multiplier
+- Gigantic buildings: 22% default multiplier
 
 	</ChangeLog>
 	<!--External Links-->

@@ -6,6 +6,7 @@ using Game.Prefabs;
 using Unity.Collections;
 using Unity.Entities;
 using Game.Common;
+using Game.Companies;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
@@ -27,6 +28,19 @@ namespace Realistic_Industrial_Power_Consumption
         private float m_LastMultiplier = 0f;
         private bool m_WasEnabled = true; // Track previous enabled state
         private const int LOG_EVERY_N_UPDATES = 60; // Log detailed stats every 60 updates (~10 seconds)
+        private const int MAX_CONSUMPTION_KW = 40000; // Límite máximo de consumo por edificio: 40 MW
+        private int m_CappedBuildingsCount = 0; // Contador de edificios que alcanzaron el límite
+        private int m_DiagnosticLogCounter = 0; // Contador para logs de diagnóstico
+        private const int LOG_DIAGNOSTIC_EVERY = 300; // Log diagnóstico cada 300 updates (~50 segundos)
+
+        // Track size multipliers to detect changes
+        private int m_LastSmallMultiplier = -1;
+        private int m_LastMediumMultiplier = -1;
+        private int m_LastLargeMultiplier = -1;
+        private int m_LastVeryLargeMultiplier = -1;
+        private int m_LastHugeMultiplier = -1;
+        private int m_LastMassiveMultiplier = -1;
+        private int m_LastGiganticMultiplier = -1;
 
         protected override void OnCreate()
         {
@@ -115,12 +129,73 @@ namespace Realistic_Industrial_Power_Consumption
 
             float multiplier = Mod.Settings.IndustrialPowerConsumption / 100f;
 
-            // If multiplier changed, reset modified prefabs so they get updated
+            // Check if any multiplier changed
+            bool multipliersChanged = false;
+
+            // Check global multiplier
             if (System.Math.Abs(multiplier - m_LastMultiplier) > 0.01f)
             {
-                log.Info($"Multiplier changed from {m_LastMultiplier * 100}% to {multiplier * 100}%. Resetting prefab modifications.");
-                m_ModifiedPrefabs.Clear();
+                log.Info($"Global multiplier changed from {m_LastMultiplier * 100}% to {multiplier * 100}%");
                 m_LastMultiplier = multiplier;
+                multipliersChanged = true;
+            }
+
+            // Check size-based multipliers
+            if (m_LastSmallMultiplier != Mod.Settings.SmallMultiplier)
+            {
+                log.Info($"Small multiplier changed from {m_LastSmallMultiplier}% to {Mod.Settings.SmallMultiplier}%");
+                m_LastSmallMultiplier = Mod.Settings.SmallMultiplier;
+                multipliersChanged = true;
+            }
+
+            if (m_LastMediumMultiplier != Mod.Settings.MediumMultiplier)
+            {
+                log.Info($"Medium multiplier changed from {m_LastMediumMultiplier}% to {Mod.Settings.MediumMultiplier}%");
+                m_LastMediumMultiplier = Mod.Settings.MediumMultiplier;
+                multipliersChanged = true;
+            }
+
+            if (m_LastLargeMultiplier != Mod.Settings.LargeMultiplier)
+            {
+                log.Info($"Large multiplier changed from {m_LastLargeMultiplier}% to {Mod.Settings.LargeMultiplier}%");
+                m_LastLargeMultiplier = Mod.Settings.LargeMultiplier;
+                multipliersChanged = true;
+            }
+
+            if (m_LastVeryLargeMultiplier != Mod.Settings.VeryLargeMultiplier)
+            {
+                log.Info($"Very Large multiplier changed from {m_LastVeryLargeMultiplier}% to {Mod.Settings.VeryLargeMultiplier}%");
+                m_LastVeryLargeMultiplier = Mod.Settings.VeryLargeMultiplier;
+                multipliersChanged = true;
+            }
+
+            if (m_LastHugeMultiplier != Mod.Settings.HugeMultiplier)
+            {
+                log.Info($"Huge multiplier changed from {m_LastHugeMultiplier}% to {Mod.Settings.HugeMultiplier}%");
+                m_LastHugeMultiplier = Mod.Settings.HugeMultiplier;
+                multipliersChanged = true;
+            }
+
+            if (m_LastMassiveMultiplier != Mod.Settings.MassiveMultiplier)
+            {
+                log.Info($"Massive multiplier changed from {m_LastMassiveMultiplier}% to {Mod.Settings.MassiveMultiplier}%");
+                m_LastMassiveMultiplier = Mod.Settings.MassiveMultiplier;
+                multipliersChanged = true;
+            }
+
+            if (m_LastGiganticMultiplier != Mod.Settings.GiganticMultiplier)
+            {
+                log.Info($"Gigantic multiplier changed from {m_LastGiganticMultiplier}% to {Mod.Settings.GiganticMultiplier}%");
+                m_LastGiganticMultiplier = Mod.Settings.GiganticMultiplier;
+                multipliersChanged = true;
+            }
+
+            // If any multiplier changed, reset cached calculations
+            if (multipliersChanged)
+            {
+                log.Info("Settings changed. Resetting prefab modifications and cached calculations.");
+                m_ModifiedPrefabs.Clear();
+                m_CalculatedConsumption.Clear();
             }
 
             try
@@ -132,17 +207,26 @@ namespace Realistic_Industrial_Power_Consumption
                 int prefabsModified = 0;
 
                 // Statistics for balancing
-                int smallCount = 0, mediumCount = 0, largeCount = 0, veryLargeCount = 0;
-                long smallTotal = 0, mediumTotal = 0, largeTotal = 0, veryLargeTotal = 0;
-                long smallFulfilled = 0, mediumFulfilled = 0, largeFulfilled = 0, veryLargeFulfilled = 0;
+                int smallCount = 0, mediumCount = 0, largeCount = 0, veryLargeCount = 0, hugeCount = 0, massiveCount = 0, giganticCount = 0;
+                long smallTotal = 0, mediumTotal = 0, largeTotal = 0, veryLargeTotal = 0, hugeTotal = 0, massiveTotal = 0, giganticTotal = 0;
+                long smallFulfilled = 0, mediumFulfilled = 0, largeFulfilled = 0, veryLargeFulfilled = 0, hugeFulfilled = 0, massiveFulfilled = 0, giganticFulfilled = 0;
                 int smallMin = int.MaxValue, smallMax = 0;
                 int mediumMin = int.MaxValue, mediumMax = 0;
                 int largeMin = int.MaxValue, largeMax = 0;
                 int veryLargeMin = int.MaxValue, veryLargeMax = 0;
+                int hugeMin = int.MaxValue, hugeMax = 0;
+                int massiveMin = int.MaxValue, massiveMax = 0;
+                int giganticMin = int.MaxValue, giganticMax = 0;
                 int smallAreaMin = int.MaxValue, smallAreaMax = 0;
                 int mediumAreaMin = int.MaxValue, mediumAreaMax = 0;
                 int largeAreaMin = int.MaxValue, largeAreaMax = 0;
                 int veryLargeAreaMin = int.MaxValue, veryLargeAreaMax = 0;
+                int hugeAreaMin = int.MaxValue, hugeAreaMax = 0;
+                int massiveAreaMin = int.MaxValue, massiveAreaMax = 0;
+                int giganticAreaMin = int.MaxValue, giganticAreaMax = 0;
+
+                // Reset contador de edificios limitados
+                m_CappedBuildingsCount = 0;
 
                 for (int i = 0; i < entities.Length; i++)
                 {
@@ -177,14 +261,37 @@ namespace Realistic_Industrial_Power_Consumption
                                 int baseConsumption = (int)System.Math.Round(lotArea * 5f);
 
                                 // Consumo final = base × sizeMultiplier (actualmente 1.0x)
-                                int calculatedConsumption = (int)System.Math.Round(baseConsumption * sizeMultiplier);
+                                int calculatedConsumptionBeforeCap = (int)System.Math.Round(baseConsumption * sizeMultiplier);
+
+                                // Aplicar límite máximo antes de aplicar el multiplicador del usuario
+                                int calculatedConsumption = System.Math.Min(calculatedConsumptionBeforeCap, MAX_CONSUMPTION_KW);
+
+                                // Log si el edificio fue limitado
+                                if (calculatedConsumptionBeforeCap > MAX_CONSUMPTION_KW)
+                                {
+                                    log.Info($"[LIMIT APPLIED] Prefab capped: Area={lotArea} tiles, Category={sizeCategory}, " +
+                                             $"Before cap={calculatedConsumptionBeforeCap} kW ({calculatedConsumptionBeforeCap/1000f:F1} MW), " +
+                                             $"After cap={calculatedConsumption} kW ({calculatedConsumption/1000f:F1} MW)");
+                                }
 
                                 m_CalculatedConsumption[prefabRef.m_Prefab] = calculatedConsumption;
                             }
 
                             // Calculate target consumption for this prefab
                             int prefabBaseConsumption = m_CalculatedConsumption[prefabRef.m_Prefab];
-                            int prefabTargetConsumption = (int)System.Math.Round(prefabBaseConsumption * multiplier);
+                            int prefabTargetBeforeMultiplier = prefabBaseConsumption;
+                            int prefabTargetAfterMultiplier = (int)System.Math.Round(prefabBaseConsumption * multiplier);
+
+                            // Aplicar límite máximo después del multiplicador del usuario
+                            int prefabTargetConsumption = System.Math.Min(prefabTargetAfterMultiplier, MAX_CONSUMPTION_KW);
+
+                            // Log detallado si se aplicó el límite DESPUÉS del multiplicador
+                            if (prefabTargetAfterMultiplier > MAX_CONSUMPTION_KW)
+                            {
+                                log.Info($"[LIMIT AFTER MULTIPLIER] Base={prefabTargetBeforeMultiplier} kW, " +
+                                         $"After multiplier ({multiplier*100}%)={prefabTargetAfterMultiplier} kW ({prefabTargetAfterMultiplier/1000f:F1} MW), " +
+                                         $"Final={prefabTargetConsumption} kW ({prefabTargetConsumption/1000f:F1} MW)");
+                            }
 
                             // Modify the prefab's ConsumptionData - This changes BOTH demand AND consumption
                             var consumptionData = EntityManager.GetComponentData<ConsumptionData>(prefabRef.m_Prefab);
@@ -205,7 +312,14 @@ namespace Realistic_Industrial_Power_Consumption
                     int targetConsumption = 0;
                     if (m_CalculatedConsumption.ContainsKey(prefabRef.m_Prefab))
                     {
-                        targetConsumption = (int)System.Math.Round(m_CalculatedConsumption[prefabRef.m_Prefab] * multiplier);
+                        int beforeCap = (int)System.Math.Round(m_CalculatedConsumption[prefabRef.m_Prefab] * multiplier);
+                        targetConsumption = System.Math.Min(beforeCap, MAX_CONSUMPTION_KW);
+
+                        // Contar edificios que alcanzaron el límite
+                        if (beforeCap > MAX_CONSUMPTION_KW)
+                        {
+                            m_CappedBuildingsCount++;
+                        }
                     }
 
                     switch (cat)
@@ -246,7 +360,116 @@ namespace Realistic_Industrial_Power_Consumption
                             veryLargeAreaMin = System.Math.Min(veryLargeAreaMin, area);
                             veryLargeAreaMax = System.Math.Max(veryLargeAreaMax, area);
                             break;
+                        case "Huge":
+                            hugeCount++;
+                            hugeTotal += targetConsumption;
+                            hugeFulfilled += consumer.m_FulfilledConsumption;
+                            hugeMin = System.Math.Min(hugeMin, targetConsumption);
+                            hugeMax = System.Math.Max(hugeMax, targetConsumption);
+                            hugeAreaMin = System.Math.Min(hugeAreaMin, area);
+                            hugeAreaMax = System.Math.Max(hugeAreaMax, area);
+                            break;
+                        case "Massive":
+                            massiveCount++;
+                            massiveTotal += targetConsumption;
+                            massiveFulfilled += consumer.m_FulfilledConsumption;
+                            massiveMin = System.Math.Min(massiveMin, targetConsumption);
+                            massiveMax = System.Math.Max(massiveMax, targetConsumption);
+                            massiveAreaMin = System.Math.Min(massiveAreaMin, area);
+                            massiveAreaMax = System.Math.Max(massiveAreaMax, area);
+                            break;
+                        case "Gigantic":
+                            giganticCount++;
+                            giganticTotal += targetConsumption;
+                            giganticFulfilled += consumer.m_FulfilledConsumption;
+                            giganticMin = System.Math.Min(giganticMin, targetConsumption);
+                            giganticMax = System.Math.Max(giganticMax, targetConsumption);
+                            giganticAreaMin = System.Math.Min(giganticAreaMin, area);
+                            giganticAreaMax = System.Math.Max(giganticAreaMax, area);
+                            break;
                     }
+                }
+
+                // Log de diagnóstico con ejemplos de edificios individuales
+                m_DiagnosticLogCounter++;
+                if (m_DiagnosticLogCounter >= LOG_DIAGNOSTIC_EVERY && entities.Length > 0)
+                {
+                    m_DiagnosticLogCounter = 0;
+                    log.Info("========== DIAGNOSTIC: SAMPLE BUILDINGS ==========");
+
+                    // Mostrar hasta 5 edificios de ejemplo con sus valores reales
+                    int samplesToShow = System.Math.Min(5, entities.Length);
+                    for (int sample = 0; sample < samplesToShow; sample++)
+                    {
+                        var sampleEntity = entities[sample];
+                        var sampleConsumer = consumers[sample];
+                        var samplePrefabRef = prefabRefs[sample];
+
+                        string cat;
+                        int area;
+                        float mult = CalculateLotSizeMultiplier(samplePrefabRef, out cat, out area);
+
+                        int baseCalc = m_CalculatedConsumption.ContainsKey(samplePrefabRef.m_Prefab)
+                            ? m_CalculatedConsumption[samplePrefabRef.m_Prefab] : 0;
+                        int target = (int)System.Math.Round(baseCalc * multiplier);
+                        int capped = System.Math.Min(target, MAX_CONSUMPTION_KW);
+
+                        // Obtener también el consumo del prefab
+                        int prefabConsumption = 0;
+                        if (EntityManager.HasComponent<ConsumptionData>(samplePrefabRef.m_Prefab))
+                        {
+                            var prefabData = EntityManager.GetComponentData<ConsumptionData>(samplePrefabRef.m_Prefab);
+                            prefabConsumption = (int)prefabData.m_ElectricityConsumption;
+                        }
+
+                        log.Info($"  Sample {sample+1}: Area={area} tiles, Category={cat}");
+                        log.Info($"    Our calculation: Base={baseCalc} kW, Target={target} kW, Capped={capped} kW");
+                        log.Info($"    Prefab ConsumptionData.m_ElectricityConsumption={prefabConsumption} kW");
+                        log.Info($"    Building ElectricityConsumer: Wanted={sampleConsumer.m_WantedConsumption} kW, Fulfilled={sampleConsumer.m_FulfilledConsumption} kW");
+
+                        // Investigar otros componentes que podrían influir en el consumo
+                        try
+                        {
+                            if (EntityManager.HasComponent<Game.Companies.CompanyData>(sampleEntity))
+                            {
+                                var companyData = EntityManager.GetComponentData<Game.Companies.CompanyData>(sampleEntity);
+                                log.Info($"    CompanyData found (Company exists)");
+                                // Explorar propiedades de CompanyData
+                            }
+
+                            if (EntityManager.HasComponent<Game.Prefabs.IndustrialProcessData>(samplePrefabRef.m_Prefab))
+                            {
+                                var processData = EntityManager.GetComponentData<Game.Prefabs.IndustrialProcessData>(samplePrefabRef.m_Prefab);
+                                log.Info($"    IndustrialProcessData: MaxWorkersPerCell={processData.m_MaxWorkersPerCell}, Output={processData.m_Output.m_Amount}");
+                            }
+
+                            // Buscar si hay un buffer de empleados
+                            if (EntityManager.HasBuffer<Game.Companies.Employee>(sampleEntity))
+                            {
+                                var employees = EntityManager.GetBuffer<Game.Companies.Employee>(sampleEntity);
+                                log.Info($"    Employees buffer: Count={employees.Length}");
+                            }
+
+                            // Buscar recursos
+                            if (EntityManager.HasBuffer<Game.Economy.Resources>(sampleEntity))
+                            {
+                                var resources = EntityManager.GetBuffer<Game.Economy.Resources>(sampleEntity);
+                                log.Info($"    Resources buffer: Count={resources.Length}");
+                            }
+                        }
+                        catch (System.Exception ex)
+                        {
+                            log.Error($"    Error reading extra components: {ex.Message}");
+                        }
+
+                        // Verificar si hay discrepancia
+                        if (System.Math.Abs(sampleConsumer.m_WantedConsumption - capped) > 100)
+                        {
+                            log.Warn($"    ⚠️ DISCREPANCY! Expected {capped} kW but building wants {sampleConsumer.m_WantedConsumption} kW");
+                            log.Warn($"    Ratio: Building wants {(float)sampleConsumer.m_WantedConsumption / baseCalc:F2}x our base calculation");
+                        }
+                    }
+                    log.Info("==================================================");
                 }
 
                 // Log detailed statistics every ~10 seconds for balancing
@@ -254,13 +477,14 @@ namespace Realistic_Industrial_Power_Consumption
                 if (m_LogCounter >= LOG_EVERY_N_UPDATES)
                 {
                     m_LogCounter = 0;
-                    long totalWanted = smallTotal + mediumTotal + largeTotal + veryLargeTotal;
-                    long totalFulfilled = smallFulfilled + mediumFulfilled + largeFulfilled + veryLargeFulfilled;
+                    long totalWanted = smallTotal + mediumTotal + largeTotal + veryLargeTotal + hugeTotal + massiveTotal + giganticTotal;
+                    long totalFulfilled = smallFulfilled + mediumFulfilled + largeFulfilled + veryLargeFulfilled + hugeFulfilled + massiveFulfilled + giganticFulfilled;
 
                     log.Info("========== POWER CONSUMPTION STATISTICS ==========");
                     log.Info($"Total industrial buildings: {entities.Length}");
                     log.Info($"Modified prefabs this cycle: {prefabsModified} | Total prefabs tracked: {m_ModifiedPrefabs.Count}");
                     log.Info($"User multiplier: {Mod.Settings.IndustrialPowerConsumption}%");
+                    log.Info($"Buildings capped at {MAX_CONSUMPTION_KW/1000} MW limit: {m_CappedBuildingsCount} ({(m_CappedBuildingsCount * 100.0 / System.Math.Max(1, entities.Length)):F1}%)");
                     log.Info($"TOTAL: Wanted {totalWanted / 1000} MW | Fulfilled {totalFulfilled / 1000} MW ({(totalFulfilled * 100.0 / System.Math.Max(1, totalWanted)):F1}% satisfaction)");
                     log.Info("");
 
@@ -287,9 +511,30 @@ namespace Realistic_Industrial_Power_Consumption
 
                     if (veryLargeCount > 0)
                     {
-                        log.Info($"VERY LARGE (>250 tiles): {veryLargeCount} buildings | Lot areas: {veryLargeAreaMin}-{veryLargeAreaMax} tiles");
+                        log.Info($"VERY LARGE (251-500 tiles): {veryLargeCount} buildings | Lot areas: {veryLargeAreaMin}-{veryLargeAreaMax} tiles");
                         log.Info($"  Wanted: Avg {veryLargeTotal / veryLargeCount} kW | Min {veryLargeMin} kW | Max {veryLargeMax} kW");
                         log.Info($"  Fulfilled: Avg {veryLargeFulfilled / veryLargeCount} kW | Total {veryLargeFulfilled / 1000} MW ({(veryLargeFulfilled * 100.0 / veryLargeTotal):F1}% of wanted)");
+                    }
+
+                    if (hugeCount > 0)
+                    {
+                        log.Info($"HUGE (501-750 tiles): {hugeCount} buildings | Lot areas: {hugeAreaMin}-{hugeAreaMax} tiles");
+                        log.Info($"  Wanted: Avg {hugeTotal / hugeCount} kW | Min {hugeMin} kW | Max {hugeMax} kW");
+                        log.Info($"  Fulfilled: Avg {hugeFulfilled / hugeCount} kW | Total {hugeFulfilled / 1000} MW ({(hugeFulfilled * 100.0 / hugeTotal):F1}% of wanted)");
+                    }
+
+                    if (massiveCount > 0)
+                    {
+                        log.Info($"MASSIVE (751-1000 tiles): {massiveCount} buildings | Lot areas: {massiveAreaMin}-{massiveAreaMax} tiles");
+                        log.Info($"  Wanted: Avg {massiveTotal / massiveCount} kW | Min {massiveMin} kW | Max {massiveMax} kW");
+                        log.Info($"  Fulfilled: Avg {massiveFulfilled / massiveCount} kW | Total {massiveFulfilled / 1000} MW ({(massiveFulfilled * 100.0 / massiveTotal):F1}% of wanted)");
+                    }
+
+                    if (giganticCount > 0)
+                    {
+                        log.Info($"GIGANTIC (>1000 tiles): {giganticCount} buildings | Lot areas: {giganticAreaMin}-{giganticAreaMax} tiles");
+                        log.Info($"  Wanted: Avg {giganticTotal / giganticCount} kW | Min {giganticMin} kW | Max {giganticMax} kW");
+                        log.Info($"  Fulfilled: Avg {giganticFulfilled / giganticCount} kW | Total {giganticFulfilled / 1000} MW ({(giganticFulfilled * 100.0 / giganticTotal):F1}% of wanted)");
                     }
 
                     log.Info("==================================================");
@@ -318,27 +563,41 @@ namespace Realistic_Industrial_Power_Consumption
                     lotArea = buildingData.m_LotSize.x * buildingData.m_LotSize.y;
 
                     // Size categories based on lot area (width × depth in tiles)
-                    // MULTIPLICADOR UNIFORME: 1.0x para todas las categorías
-                    // El consumo escala puramente por área del lote
+                    // Multiplicadores configurables por el usuario
                     if (lotArea <= 30)
                     {
                         sizeCategory = "Small";
-                        return 1.0f;
+                        return Mod.Settings.SmallMultiplier / 100f;
                     }
                     else if (lotArea <= 100)
                     {
                         sizeCategory = "Medium";
-                        return 0.9f;
+                        return Mod.Settings.MediumMultiplier / 100f;
                     }
                     else if (lotArea <= 250)
                     {
                         sizeCategory = "Large";
-                        return 0.8f;
+                        return Mod.Settings.LargeMultiplier / 100f;
+                    }
+                    else if (lotArea <= 500)
+                    {
+                        sizeCategory = "Very Large";
+                        return Mod.Settings.VeryLargeMultiplier / 100f;
+                    }
+                    else if (lotArea <= 750)
+                    {
+                        sizeCategory = "Huge";
+                        return Mod.Settings.HugeMultiplier / 100f;
+                    }
+                    else if (lotArea <= 1000)
+                    {
+                        sizeCategory = "Massive";
+                        return Mod.Settings.MassiveMultiplier / 100f;
                     }
                     else
                     {
-                        sizeCategory = "Very Large";
-                        return 0.7f;
+                        sizeCategory = "Gigantic";
+                        return Mod.Settings.GiganticMultiplier / 100f;
                     }
                 }
                 else
